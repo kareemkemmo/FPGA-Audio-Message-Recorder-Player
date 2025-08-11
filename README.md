@@ -30,7 +30,7 @@ An FPGA-based **real-time audio recording and playback system** implemented on t
 
 **Block Diagram:**
 
----
+<img width="716" height="379" alt="Image" src="https://github.com/user-attachments/assets/30051336-2dd3-4fad-83b4-f812ed949299" />
 
 ## 🔧 Design Overview
 
