@@ -1,0 +1,992 @@
+;================================================================
+;  PicoBlaze UART Text-Menu  •  Audio Message Recorder  (UI only)
+;  KCPSM-compliant – no inline ':' separators – ready to assemble
+;================================================================
+
+;---------------- PORT MAP ----------------------------------------------------
+CONSTANT switches        , 00
+CONSTANT leds            , 01
+CONSTANT uart_data_rx    , 02
+CONSTANT uart_data_tx    , 03
+CONSTANT data_present    , 04
+CONSTANT buffer_full     , 05
+
+;---------------- ASCII CONSTANTS ---------------------------------------------
+CONSTANT ascii_NUL       , 00
+CONSTANT ascii_CR        , 0D
+CONSTANT ascii_LF        , 0A
+CONSTANT ascii_ESC       , 1B
+CONSTANT ascii_SPACE     , 20
+CONSTANT ascii_EXCLAIM   , 21
+CONSTANT ascii_ASTERISK  , 2A
+CONSTANT ascii_PLUS      , 2B
+CONSTANT ascii_MINUS     , 2D
+CONSTANT ascii_PERIOD    , 2E
+CONSTANT ascii_FWDSLASH  , 2F
+CONSTANT ascii_COLON     , 3A
+CONSTANT ascii_QUESTION  , 3F
+CONSTANT ascii_0         , 30
+CONSTANT ascii_1         , 31
+CONSTANT ascii_2         , 32
+CONSTANT ascii_3         , 33
+CONSTANT ascii_4         , 34
+CONSTANT ascii_5         , 35
+CONSTANT ascii_A         , 41
+CONSTANT ascii_B         , 42
+CONSTANT ascii_C         , 43
+CONSTANT ascii_D         , 44
+CONSTANT ascii_E         , 45
+CONSTANT ascii_F	 , 46
+CONSTANT ascii_G	 , 47
+CONSTANT ascii_H         , 48
+CONSTANT ascii_I	 , 49
+CONSTANT ascii_J         , 4A
+CONSTANT ascii_K	 , 4B
+CONSTANT ascii_L         , 4C
+CONSTANT ascii_M	 , 4D
+CONSTANT ascii_N	 , 4E
+CONSTANT ascii_O         , 4F
+CONSTANT ascii_P         , 50
+CONSTANT ascii_Q	 , 51
+CONSTANT ascii_R         , 52
+CONSTANT ascii_S	 , 53
+CONSTANT ascii_T	 , 54
+CONSTANT ascii_U         , 55
+CONSTANT ascii_V         , 56
+CONSTANT ascii_W         , 57
+CONSTANT ascii_X	 , 58
+CONSTANT ascii_Y         , 59
+CONSTANT ascii_Z	 , 5A
+CONSTANT ascii_LBKT      , 5B        ; “[”
+CONSTANT ascii_RBKT	 , 5C
+
+;  lower-case a–z -------------------------------------------------------------
+CONSTANT ascii_a , 61  
+CONSTANT ascii_b , 62  
+CONSTANT ascii_c , 63
+CONSTANT ascii_d , 64  
+CONSTANT ascii_e , 65  
+CONSTANT ascii_f , 66
+CONSTANT ascii_g , 67  
+CONSTANT ascii_h , 68  
+CONSTANT ascii_i , 69
+CONSTANT ascii_j , 6A  
+CONSTANT ascii_k , 6B  
+CONSTANT ascii_l , 6C
+CONSTANT ascii_m , 6D  
+CONSTANT ascii_n , 6E  
+CONSTANT ascii_o , 6F
+CONSTANT ascii_p , 70  
+CONSTANT ascii_q , 71  
+CONSTANT ascii_r , 72
+CONSTANT ascii_s , 73  
+CONSTANT ascii_t , 74  
+CONSTANT ascii_u , 75
+CONSTANT ascii_v , 76  
+CONSTANT ascii_w , 77  
+CONSTANT ascii_x , 78
+CONSTANT ascii_y , 79  
+CONSTANT ascii_z , 7A
+CONSTANT ascii_lc_after_z, 7B
+
+;---------------- FSM STATE CODES ---------------------------------------------
+CONSTANT st_MAIN         , 00
+CONSTANT st_PLAY         , 01
+CONSTANT st_RECORDING    , 02
+CONSTANT st_DELETE       , 03
+CONSTANT st_CONFIRM_ALL  , 04
+CONSTANT st_VOLUME       , 05
+CONSTANT st_PLAYBACK     , 06
+
+;================================================================
+;  ENTRY
+;================================================================
+            ;ORG     0
+start:      CALL    show_main_menu
+            LOAD    s0, st_MAIN
+
+main_loop:  CALL    uart_poll
+            JUMP    main_loop
+
+;================================================================
+;  UART POLLING + DISPATCH
+;================================================================
+uart_poll:
+            INPUT   s2, data_present
+            TEST    s2, 01
+            JUMP    Z, uart_done
+            INPUT   s3, uart_data_rx
+            CALL    echo_char
+;  upper-case conversion
+            COMPARE s3, ascii_a
+            JUMP    C,  dispatch
+            COMPARE s3, ascii_lc_after_z
+            JUMP    NC, dispatch
+            SUB     s3, 20
+dispatch:
+            COMPARE s0, st_MAIN
+            JUMP    Z, main_state
+            COMPARE s0, st_PLAY
+            JUMP    Z, play_state
+            COMPARE s0, st_RECORDING
+            JUMP    Z, rec_state
+            COMPARE s0, st_DELETE
+            JUMP    Z, del_state
+            COMPARE s0, st_CONFIRM_ALL
+            JUMP    Z, conf_state
+            COMPARE s0, st_VOLUME
+            JUMP    Z, vol_state
+	    COMPARE s0, st_PLAYBACK
+            JUMP    Z, playback_state
+uart_done:
+            RETURN
+
+;================================================================
+;  MAIN MENU
+;================================================================
+main_state:
+            COMPARE s3, ascii_1
+            JUMP    Z, go_play
+            COMPARE s3, ascii_2
+            JUMP    Z, go_record
+            COMPARE s3, ascii_3
+            JUMP    Z, go_delete
+            COMPARE s3, ascii_4
+            JUMP    Z, go_delall
+            COMPARE s3, ascii_5
+            JUMP    Z, go_volume
+            RETURN
+go_play:
+            LOAD    s0, st_PLAY
+            CALL    show_play_menu
+            RETURN
+go_record:
+            LOAD    s0, st_RECORDING
+            CALL    show_record_screen
+            RETURN
+go_delete:
+            LOAD    s0, st_DELETE
+            CALL    show_delete_menu
+            RETURN
+go_delall:
+            LOAD    s0, st_CONFIRM_ALL
+            CALL    show_confirm_all
+            RETURN
+go_volume:
+            LOAD    s0, st_VOLUME
+            CALL    show_volume_menu
+            RETURN
+
+;================================================================
+;  PLAY MENU
+;================================================================
+play_state:
+            COMPARE s3, ascii_B
+            JUMP    Z, play_back
+            COMPARE s3, ascii_1
+            JUMP    Z, play_enter_msg
+            COMPARE s3, ascii_2
+            JUMP    Z, play_enter_msg
+            COMPARE s3, ascii_3
+            JUMP    Z, play_enter_msg
+	    COMPARE s3, ascii_4
+            JUMP    Z, play_enter_msg
+            COMPARE s3, ascii_5
+            JUMP    Z, play_enter_msg
+            RETURN
+
+play_enter_msg:                     
+            LOAD    s0, st_PLAYBACK
+            CALL    show_play_controls
+            RETURN
+
+play_back:
+            LOAD    s0, st_MAIN
+            CALL    show_main_menu
+            RETURN
+
+;================================================================
+;  RECORDING
+;================================================================
+rec_state:
+            COMPARE s3, ascii_S
+            JUMP    Z, rec_stop
+            RETURN
+rec_stop:
+            LOAD    s0, st_MAIN
+            CALL    show_main_menu
+            RETURN
+
+;================================================================
+;  DELETE MENU
+;================================================================
+del_state:
+            COMPARE s3, ascii_B
+            JUMP    Z, del_back
+            COMPARE s3, ascii_1
+            JUMP    Z, del_back
+            COMPARE s3, ascii_2
+            JUMP    Z, del_back
+            COMPARE s3, ascii_3
+            JUMP    Z, del_back
+	    COMPARE s3, ascii_4
+            JUMP    Z, del_back
+            COMPARE s3, ascii_5
+            JUMP    Z, del_back
+            RETURN
+
+del_back:
+            LOAD    s0, st_MAIN
+            CALL    show_main_menu
+            RETURN
+
+;================================================================
+;  DELETE-ALL CONFIRM
+;================================================================
+conf_state:
+            COMPARE s3, ascii_Y
+            JUMP    Z, conf_yes
+            COMPARE s3, ascii_N
+            JUMP    Z, conf_no
+            RETURN
+conf_yes:
+            CALL    stub_del_all
+conf_no:
+            LOAD    s0, st_MAIN
+            CALL    show_main_menu
+            RETURN
+
+;================================================================
+;  VOLUME MENU
+;================================================================
+vol_state:
+            COMPARE s3, ascii_U
+            JUMP    Z, stub_vol_up
+            COMPARE s3, ascii_D
+            JUMP    Z, stub_vol_dn
+            COMPARE s3, ascii_B
+            JUMP    Z, vol_back
+            RETURN
+vol_back:
+            LOAD    s0, st_MAIN
+            CALL    show_main_menu
+            RETURN
+
+;================================================================
+;  UART UTILITIES
+;================================================================
+echo_char:
+            LOAD    s1, s3
+send_char_wait:
+            INPUT   s2, buffer_full
+            TEST    s2, 01
+            JUMP    NZ, send_char_wait
+            OUTPUT  s1, uart_data_tx
+            RETURN
+
+send_crlf:
+            LOAD    s1, ascii_CR
+            CALL    send_char_wait
+            LOAD    s1, ascii_LF
+            CALL    send_char_wait
+            RETURN
+
+;---- VT100 clear screen ------------------------------------------------------
+cls_term:
+            LOAD    s1, ascii_ESC
+            CALL    send_char_wait
+            LOAD    s1, ascii_LBKT
+            CALL    send_char_wait
+            LOAD    s1, ascii_2
+            CALL    send_char_wait
+            LOAD    s1, ascii_J
+            CALL    send_char_wait
+            LOAD    s1, ascii_ESC
+            CALL    send_char_wait
+            LOAD    s1, ascii_LBKT
+            CALL    send_char_wait
+            LOAD    s1, ascii_H
+            CALL    send_char_wait
+            RETURN
+
+;================================================================
+;  SCREEN DRAW ROUTINES  (all newline-separated LOAD/CALL pairs)
+;================================================================
+show_main_menu:
+            CALL    cls_term
+; "Welcome to the Audio Recorder!"
+            LOAD s1, ascii_W      ; W
+            CALL send_char_wait
+            LOAD s1, ascii_e      ; e
+            CALL send_char_wait
+            LOAD s1, ascii_l
+            CALL send_char_wait
+            LOAD s1, ascii_c
+            CALL send_char_wait
+            LOAD s1, ascii_o
+            CALL send_char_wait
+            LOAD s1, ascii_m
+            CALL send_char_wait
+            LOAD s1, ascii_e
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_t
+            CALL send_char_wait
+            LOAD s1, ascii_o
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_t
+            CALL send_char_wait
+            LOAD s1, ascii_h
+            CALL send_char_wait
+            LOAD s1, ascii_e
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_A
+            CALL send_char_wait
+            LOAD s1, ascii_u
+            CALL send_char_wait
+            LOAD s1, ascii_d
+            CALL send_char_wait
+            LOAD s1, ascii_i
+            CALL send_char_wait
+            LOAD s1, ascii_o
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_R
+            CALL send_char_wait
+            LOAD s1, ascii_e
+            CALL send_char_wait
+            LOAD s1, ascii_c
+            CALL send_char_wait
+            LOAD s1, ascii_o
+            CALL send_char_wait
+            LOAD s1, ascii_r
+            CALL send_char_wait
+            LOAD s1, ascii_d
+            CALL send_char_wait
+            LOAD s1, ascii_e
+            CALL send_char_wait
+            LOAD s1, ascii_r
+            CALL send_char_wait
+            LOAD s1, ascii_EXCLAIM
+            CALL send_char_wait
+            CALL send_crlf
+
+; "Select an option:"
+            LOAD s1, ascii_S
+            CALL send_char_wait
+            LOAD s1, ascii_e
+            CALL send_char_wait
+            LOAD s1, ascii_l
+            CALL send_char_wait
+            LOAD s1, ascii_e
+            CALL send_char_wait
+            LOAD s1, ascii_c
+            CALL send_char_wait
+            LOAD s1, ascii_t
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_a
+            CALL send_char_wait
+            LOAD s1, ascii_n
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_o
+            CALL send_char_wait
+            LOAD s1, ascii_p
+            CALL send_char_wait
+            LOAD s1, ascii_t
+            CALL send_char_wait
+            LOAD s1, ascii_i
+            CALL send_char_wait
+            LOAD s1, ascii_o
+            CALL send_char_wait
+            LOAD s1, ascii_n
+            CALL send_char_wait
+            LOAD s1, ascii_COLON
+            CALL send_char_wait
+            CALL send_crlf
+            CALL send_crlf
+
+; "1. Play a message"
+            LOAD s1, ascii_1
+            CALL send_char_wait
+            LOAD s1, ascii_PERIOD
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_P
+            CALL send_char_wait
+            LOAD s1, ascii_l
+            CALL send_char_wait
+            LOAD s1, ascii_a
+            CALL send_char_wait
+            LOAD s1, ascii_y
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_a
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_m
+            CALL send_char_wait
+            LOAD s1, ascii_e
+            CALL send_char_wait
+            LOAD s1, ascii_s
+            CALL send_char_wait
+            LOAD s1, ascii_s
+            CALL send_char_wait
+            LOAD s1, ascii_a
+            CALL send_char_wait
+            LOAD s1, ascii_g
+            CALL send_char_wait
+            LOAD s1, ascii_e
+            CALL send_char_wait
+            CALL send_crlf
+
+; "2. Record a message"
+            LOAD s1, ascii_2
+            CALL send_char_wait
+            LOAD s1, ascii_PERIOD
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_R
+            CALL send_char_wait
+            LOAD s1, ascii_e
+            CALL send_char_wait
+            LOAD s1, ascii_c
+            CALL send_char_wait
+            LOAD s1, ascii_o
+            CALL send_char_wait
+            LOAD s1, ascii_r
+            CALL send_char_wait
+            LOAD s1, ascii_d
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_a
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_m
+            CALL send_char_wait
+            LOAD s1, ascii_e
+            CALL send_char_wait
+            LOAD s1, ascii_s
+            CALL send_char_wait
+            LOAD s1, ascii_s
+            CALL send_char_wait
+            LOAD s1, ascii_a
+            CALL send_char_wait
+            LOAD s1, ascii_g
+            CALL send_char_wait
+            LOAD s1, ascii_e
+            CALL send_char_wait
+            CALL send_crlf
+
+
+; "3. Delete a message"
+            LOAD s1, ascii_3
+            CALL send_char_wait
+            LOAD s1, ascii_PERIOD
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_D
+            CALL send_char_wait
+            LOAD s1, ascii_e
+            CALL send_char_wait
+            LOAD s1, ascii_l
+            CALL send_char_wait
+            LOAD s1, ascii_e
+            CALL send_char_wait
+            LOAD s1, ascii_t
+            CALL send_char_wait
+            LOAD s1, ascii_e
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_a
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_m
+            CALL send_char_wait
+            LOAD s1, ascii_e
+            CALL send_char_wait
+            LOAD s1, ascii_s
+            CALL send_char_wait
+            LOAD s1, ascii_s
+            CALL send_char_wait
+            LOAD s1, ascii_a
+            CALL send_char_wait
+            LOAD s1, ascii_g
+            CALL send_char_wait
+            LOAD s1, ascii_e
+            CALL send_char_wait
+            CALL send_crlf
+
+; "4. Delete all messages"
+            LOAD s1, ascii_4
+            CALL send_char_wait
+            LOAD s1, ascii_PERIOD
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_D
+            CALL send_char_wait
+            LOAD s1, ascii_e
+            CALL send_char_wait
+            LOAD s1, ascii_l
+            CALL send_char_wait
+            LOAD s1, ascii_e
+            CALL send_char_wait
+            LOAD s1, ascii_t
+            CALL send_char_wait
+            LOAD s1, ascii_e
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_a
+            CALL send_char_wait
+            LOAD s1, ascii_l
+            CALL send_char_wait
+            LOAD s1, ascii_l
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_m
+            CALL send_char_wait
+            LOAD s1, ascii_e
+            CALL send_char_wait
+            LOAD s1, ascii_s
+            CALL send_char_wait
+            LOAD s1, ascii_s
+            CALL send_char_wait
+            LOAD s1, ascii_a
+            CALL send_char_wait
+            LOAD s1, ascii_g
+            CALL send_char_wait
+            LOAD s1, ascii_e
+            CALL send_char_wait
+            LOAD s1, ascii_s
+            CALL send_char_wait
+            CALL send_crlf
+
+; "5. Volume control"
+            LOAD s1, ascii_5
+            CALL send_char_wait
+            LOAD s1, ascii_PERIOD
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_V
+            CALL send_char_wait
+            LOAD s1, ascii_o
+            CALL send_char_wait
+            LOAD s1, ascii_l
+            CALL send_char_wait
+            LOAD s1, ascii_u
+            CALL send_char_wait
+            LOAD s1, ascii_m
+            CALL send_char_wait
+            LOAD s1, ascii_e
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_c
+            CALL send_char_wait
+            LOAD s1, ascii_o
+            CALL send_char_wait
+            LOAD s1, ascii_n
+            CALL send_char_wait
+            LOAD s1, ascii_t
+            CALL send_char_wait
+            LOAD s1, ascii_r
+            CALL send_char_wait
+            LOAD s1, ascii_o
+            CALL send_char_wait
+            LOAD s1, ascii_l
+            CALL send_char_wait
+            CALL send_crlf
+            CALL send_crlf
+            RETURN
+
+;----------------------------------------------------------------
+show_play_menu:
+            CALL cls_term
+; "Audio Library:"
+            LOAD s1, ascii_A
+            CALL send_char_wait
+            LOAD s1, ascii_u
+            CALL send_char_wait
+            LOAD s1, ascii_d
+            CALL send_char_wait
+            LOAD s1, ascii_i
+            CALL send_char_wait
+            LOAD s1, ascii_o
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_L
+            CALL send_char_wait
+            LOAD s1, ascii_i
+            CALL send_char_wait
+            LOAD s1, ascii_b
+            CALL send_char_wait
+            LOAD s1, ascii_r
+            CALL send_char_wait
+            LOAD s1, ascii_a
+            CALL send_char_wait
+            LOAD s1, ascii_r
+            CALL send_char_wait
+            LOAD s1, ascii_y
+            CALL send_char_wait
+            LOAD s1, ascii_COLON
+            CALL send_char_wait
+            CALL send_crlf
+            CALL send_crlf
+	    
+	    LOAD s4, 01               ; loop counter 1-5
+play_item_lp:
+            LOAD s1, ascii_ASTERISK   ; *
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_M          ; M
+            CALL send_char_wait
+            LOAD s1, ascii_e          ; e
+            CALL send_char_wait
+            LOAD s1, ascii_s          ; s
+            CALL send_char_wait
+            LOAD s1, ascii_s          ; s
+            CALL send_char_wait
+            LOAD s1, ascii_a          ; a
+            CALL send_char_wait
+            LOAD s1, ascii_g          ; g
+            CALL send_char_wait
+            LOAD s1, ascii_e          ; e
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, s4               ; numeric 1-5 already in s4
+            ADD s1, ascii_0           ; convert to ASCII
+            CALL send_char_wait
+            CALL send_crlf
+            ADD  s4, 01
+            COMPARE s4, 06
+            JUMP NZ, play_item_lp
+
+            CALL send_crlf
+            RETURN
+
+;----------------------------------------------------------------
+show_record_screen:
+            CALL cls_term
+; "Recording... Press S to stop."
+            LOAD s1, ascii_R
+            CALL send_char_wait
+            LOAD s1, ascii_e
+            CALL send_char_wait
+            LOAD s1, ascii_c
+            CALL send_char_wait
+            LOAD s1, ascii_o
+            CALL send_char_wait
+            LOAD s1, ascii_r
+            CALL send_char_wait
+            LOAD s1, ascii_d
+            CALL send_char_wait
+            LOAD s1, ascii_i
+            CALL send_char_wait
+            LOAD s1, ascii_n
+            CALL send_char_wait
+            LOAD s1, ascii_g
+            CALL send_char_wait
+            LOAD s1, ascii_PERIOD
+            CALL send_char_wait
+            LOAD s1, ascii_PERIOD
+            CALL send_char_wait
+            LOAD s1, ascii_PERIOD
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_P
+            CALL send_char_wait
+            LOAD s1, ascii_r
+            CALL send_char_wait
+            LOAD s1, ascii_e
+            CALL send_char_wait
+            LOAD s1, ascii_s
+            CALL send_char_wait
+            LOAD s1, ascii_s
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_S
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_t
+            CALL send_char_wait
+            LOAD s1, ascii_o
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_s
+            CALL send_char_wait
+            LOAD s1, ascii_t
+            CALL send_char_wait
+            LOAD s1, ascii_o
+            CALL send_char_wait
+            LOAD s1, ascii_p
+            CALL send_char_wait
+            LOAD s1, ascii_PERIOD
+            CALL send_char_wait
+            CALL send_crlf
+            RETURN
+
+show_delete_menu:
+            CALL cls_term
+; "Delete Menu"
+            LOAD s1, ascii_D
+            CALL send_char_wait
+            LOAD s1, ascii_e
+            CALL send_char_wait
+            LOAD s1, ascii_l
+            CALL send_char_wait
+            LOAD s1, ascii_e
+            CALL send_char_wait
+            LOAD s1, ascii_t
+            CALL send_char_wait
+            LOAD s1, ascii_e
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_M
+            CALL send_char_wait
+            LOAD s1, ascii_e
+            CALL send_char_wait
+            LOAD s1, ascii_n
+            CALL send_char_wait
+            LOAD s1, ascii_u
+            CALL send_char_wait
+            CALL send_crlf
+            CALL send_crlf
+		
+	    LOAD s4, 01               ; loop counter 1-5
+delete_item_lp:
+            LOAD s1, ascii_ASTERISK   ; *
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_M          ; M
+            CALL send_char_wait
+            LOAD s1, ascii_e          ; e
+            CALL send_char_wait
+            LOAD s1, ascii_s          ; s
+            CALL send_char_wait
+            LOAD s1, ascii_s          ; s
+            CALL send_char_wait
+            LOAD s1, ascii_a          ; a
+            CALL send_char_wait
+            LOAD s1, ascii_g          ; g
+            CALL send_char_wait
+            LOAD s1, ascii_e          ; e
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, s4               ; numeric 1-5 already in s4
+            ADD s1, ascii_0           ; convert to ASCII
+            CALL send_char_wait
+            CALL send_crlf
+            ADD  s4, 01
+            COMPARE s4, 06
+            JUMP NZ, delete_item_lp
+            
+	    CALL send_crlf
+            RETURN
+
+show_confirm_all:
+            CALL cls_term
+; "Are you sure? Y/N"
+            LOAD s1, ascii_A
+            CALL send_char_wait
+            LOAD s1, ascii_r
+            CALL send_char_wait
+            LOAD s1, ascii_e
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_y
+            CALL send_char_wait
+            LOAD s1, ascii_o
+            CALL send_char_wait
+            LOAD s1, ascii_u
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_s
+            CALL send_char_wait
+            LOAD s1, ascii_u
+            CALL send_char_wait
+            LOAD s1, ascii_r
+            CALL send_char_wait
+            LOAD s1, ascii_e
+            CALL send_char_wait
+            LOAD s1, ascii_QUESTION
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_Y
+            CALL send_char_wait
+            LOAD s1, ascii_FWDSLASH
+            CALL send_char_wait
+            LOAD s1, ascii_N
+            CALL send_char_wait
+            CALL send_crlf
+            RETURN
+
+show_volume_menu:
+            CALL cls_term
+; "Volume [U or D]"
+            LOAD s1, ascii_V
+            CALL send_char_wait
+            LOAD s1, ascii_o
+            CALL send_char_wait
+            LOAD s1, ascii_l
+            CALL send_char_wait
+            LOAD s1, ascii_u
+            CALL send_char_wait
+            LOAD s1, ascii_m
+            CALL send_char_wait
+            LOAD s1, ascii_e
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_LBKT
+            CALL send_char_wait
+            LOAD s1, ascii_U
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_o
+            CALL send_char_wait
+            LOAD s1, ascii_r
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_D
+            CALL send_char_wait
+            LOAD s1, ascii_RBKT
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            CALL send_crlf
+            CALL send_crlf
+            RETURN
+
+;================================================================
+;  PLAYBACK controls  (state 06)
+;================================================================
+show_play_controls:
+            CALL cls_term
+; "Play / Pause / Skip  (B back)"
+            LOAD s1, ascii_P          ; P
+            CALL send_char_wait
+            LOAD s1, ascii_l          ; l
+            CALL send_char_wait
+            LOAD s1, ascii_a          ; a
+            CALL send_char_wait
+            LOAD s1, ascii_y          ; y
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_FWDSLASH   ; /
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_P          ; P
+            CALL send_char_wait
+            LOAD s1, ascii_a          ; a
+            CALL send_char_wait
+            LOAD s1, ascii_u          ; u
+            CALL send_char_wait
+            LOAD s1, ascii_s          ; s
+            CALL send_char_wait
+            LOAD s1, ascii_e          ; e
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_FWDSLASH
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_S          ; S
+            CALL send_char_wait
+            LOAD s1, ascii_k          ; k
+            CALL send_char_wait
+            LOAD s1, ascii_i          ; i
+            CALL send_char_wait
+            LOAD s1, ascii_p          ; p
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_LBKT       ; [
+            CALL send_char_wait
+            LOAD s1, ascii_B          ; B
+            CALL send_char_wait
+            LOAD s1, ascii_SPACE
+            CALL send_char_wait
+            LOAD s1, ascii_b          ; b
+            CALL send_char_wait
+            LOAD s1, ascii_a          ; a
+            CALL send_char_wait
+            LOAD s1, ascii_c          ; c
+            CALL send_char_wait
+            LOAD s1, ascii_k          ; k
+            CALL send_char_wait
+            LOAD s1, ascii_RBKT       ; ]   (add if you have it; else omit)
+            CALL send_char_wait
+            CALL send_crlf
+            RETURN
+
+playback_state:
+            COMPARE s3, ascii_B       ; back to list
+            JUMP    Z, pb_back
+            COMPARE s3, ascii_P       ; pause / resume
+            JUMP    Z, stub_play_pause
+            COMPARE s3, ascii_S       ; skip
+            JUMP    Z, stub_skip
+            RETURN
+pb_back:
+            LOAD    s0, st_PLAY
+            CALL    show_play_menu
+            RETURN
+
+;================================================================
+;  PLACEHOLDER ROUTINES
+;================================================================
+stub_scroll_up:   RETURN
+stub_scroll_dn:   RETURN
+stub_play_msg:    RETURN
+stub_delete_msg:  RETURN
+stub_del_all:     RETURN
+stub_vol_up:      RETURN
+stub_vol_dn:      RETURN
+stub_play_pause:  RETURN
+stub_skip:        RETURN
+
+;================================================================
+;  END
+;================================================================

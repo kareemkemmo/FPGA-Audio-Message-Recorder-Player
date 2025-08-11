@@ -1,0 +1,8 @@
+INTSTYLE=ise
+INFILE=/home/ise/FINAL ATTEMPTS/lab6 copy/loopback.ncd
+OUTFILE=/home/ise/FINAL ATTEMPTS/lab6 copy/loopback.bit
+FAMILY=Spartan6
+PART=xc6slx45-3csg484
+WORKINGDIR=/home/ise/FINAL ATTEMPTS/lab6 copy
+LICENSE=ISE
+USER_INFO=8416_11442_1478797146_620

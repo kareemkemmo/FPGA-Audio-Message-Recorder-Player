@@ -1,0 +1,23 @@
+
+NET "switches[7]" LOC=<FILL_IN>;
+NET "switches[6]" LOC=<FILL_IN>;
+NET "switches[5]" LOC=<FILL_IN>;
+NET "switches[4]" LOC=<FILL_IN>;
+NET "switches[3]" LOC=<FILL_IN>;
+NET "switches[2]" LOC=<FILL_IN>;
+NET "switches[1]" LOC=<FILL_IN>;
+NET "switches[0]" LOC=<FILL_IN>;
+
+NET "leds[7]" LOC=<FILL_IN>;
+NET "leds[6]" LOC=<FILL_IN>;
+NET "leds[5]" LOC=<FILL_IN>;
+NET "leds[4]" LOC=<FILL_IN>;
+NET "leds[3]" LOC=<FILL_IN>;
+NET "leds[2]" LOC=<FILL_IN>;
+NET "leds[1]" LOC=<FILL_IN>;
+NET "leds[0]" LOC=<FILL_IN>;
+
+NET "rs232_tx" LOC=<FILL_IN>;
+NET "rs232_rx" LOC=<FILL_IN>;
+NET "reset" LOC=<FILL_IN>;
+NET "clk" LOC=<FILL_IN>;
